@@ -1,24 +1,32 @@
+from pytubefix import YouTube
 import os
-from youtube_transcript_api import YouTubeTranscriptApi
-import json
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
-if not os.path.exists("Captions"):
-    os.mkdir("Captions")
 
-with open("video_id.txt", "r") as file:
-    video_ids = [line.strip() for line in file]
+gauth = GoogleAuth()
+gauth.LocalWebserverAuth()
+drive = GoogleDrive(gauth)
 
-for video_id in video_ids:
-    try:
-        caption_info = YouTubeTranscriptApi.list_transcripts(video_id)
-        english_caption = caption_info.find_transcript(['en'])
-        if english_caption:
-            transcript = english_caption.fetch()
-            output_path = os.path.join("Captions", f"{video_id}_transcript.json")
-            with open(output_path, "w") as output_file:
-                json.dump(transcript, output_file)
-            print(f"Transcript for video {video_id} (English) saved as {output_path}.")
-        else:
-            print(f"No English captions available for video {video_id}.")
-    except Exception as e:
-        print(f"Failed to retrieve transcript for video {video_id}. Error: {e}")
+# grab the current directory 
+curr_dir = os.getcwd()
+# grab the links and iter through them one by one
+with open('links.txt', 'r') as links:
+    for link in links:
+        # create the youtube object to access everything
+        video = YouTube(link)
+        # create the cpations file name and the folder file name
+        captions = video.title + " Captions"
+        folder = video.title + " Folder"
+        # make the path for captions to be written to and video downloaded into 
+        folder_path = os.path.join(curr_dir, folder)
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        # modify to make the file inside the folder
+        write_captions = os.path.join(folder, captions+".txt")
+        file1 = open(write_captions, "w")
+        caption = video.captions['en']
+        # make the file in a readable format
+        file1.write(caption.generate_srt_captions())
+        # download video to new folder
+        video.streams.get_by_itag(22).download(output_path=folder_path)
