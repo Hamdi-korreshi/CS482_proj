@@ -1,29 +1,33 @@
-import torch
-from torchvision.io import read_video
-import torchvision.transforms.functional as F
-import torchvision.transforms as T
-from torchvision.utils import save_image
-import numpy as np
-from pathlib import Path
 import os
+import cv2
 
-v = 'Videos/Questions Remain Over Explosion At Gaza Hospital  NPR News Now.mp4'
-folder = "Frames"
-if not os.path.exists(folder):
-    os.mkdir(folder)
-print("Go into the mother load")
-print(Path(v))
-directory = 'Videos'
-for filename in os.listdir(directory):
-    if filename.endswith(".mp4"):  # specify the type of files, you can use a tuple of extensions
-        frames,_,_ = read_video(str(Path(v)), output_format="TCHW", start_pts=0, end_pts=1, pts_unit = 'sec')
-        frames = frames.float()
-        mean = torch.mean(frames)
-        std = torch.std(frames)
-        norm = T.Normalize(mean, std)
-        resized_1 = F.resize(frames, size=(224, 224))
-        resized_1 -= mean
-        resized_1 /= std
-        r_and_n = norm(resized_1)
-        arr = r_and_n.numpy()
-        np.save(f'Frames/{filename}_frame.npy', arr)
+folder = "/home/hamdi/CS482_proj/Videos"
+prep = "/home/hamdi/CS482_proj/Frames"
+all_count = 0
+if not os.path.exists(prep):
+    os.mkdir(prep)
+    print("MADE")
+for video in os.listdir(folder):
+    if video.endswith('.mp4'):
+        print(f"Preprocessing video file: {video}")
+        video_path = os.path.join(folder, video)
+        cap = cv2.VideoCapture(video_path)
+        count = 0
+        # read frame loop
+        while True:
+            ret, frame = cap.read()
+        # Break the loop if no more frames are available
+            if not ret:
+                break
+            # every frame 90th frame because its gonna be way too big othewise and now we are grabbing ever 3 seconds or so
+            # int is needed so my frames arent 257.9888887877678
+            if count % 90 == 0:
+                frame_filename = os.path.join(prep, f"frame{int(all_count / 90)}.jpg")
+                resized_frame = cv2.resize(frame, (224, 224))
+                cv2.imwrite(frame_filename, frame)
+            count += 1
+            all_count += 1
+        # you the release otherwise it courrpts you're docker and or whole ipynb fil :)
+        cap.release()
+        print(count, "frames saved ")
+print("Done")
