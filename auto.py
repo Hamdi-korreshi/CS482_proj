@@ -5,6 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torch.optim import Adam
 import torch.nn as nn
+import numpy as np
 
 # Define your video folder and preprocessed folder
 video_folder = "/workspace/CS482_proj/Videos"
@@ -65,7 +66,7 @@ class VideoFrameDataset(Dataset):
 # Load your dataset without normalization
 dataset = VideoFrameDataset(root=preprocessed_folder)
 
-data_loader = DataLoader(dataset, batch_size=2, shuffle=True)
+data_loader = DataLoader(dataset, batch_size=8, shuffle=True)
 
 # Initialize the autoencoder and optimizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -84,25 +85,25 @@ def combine_embeddings(embeddings):
 # Training loop with embeddings
 def train_autoencoder(model, data_loader, epochs=10):
     model.train()
+    # Create a directory for the embeddings
+    os.makedirs('embeddings', exist_ok=True)
     for epoch in range(epochs):
-        embeddings = []
         for i, batch in enumerate(data_loader):
             # Move batch to device
             batch = batch.to(device)
             # Forward pass
             encoded, reconstructed = model(batch)
-            embeddings.append(encoded.detach())  # Keep on same device as model
             # Compute loss
             loss = criterion(reconstructed, batch)
             # Backward pass and optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            print(f"Iteration {i+1} completed successfully, Loss: {loss.item():.4f}")
+            # Combine embeddings after each iteration
+            combined_embedding = combine_embeddings([encoded.detach()])
+            # Save the combined embedding to a file in the 'embeddings' directory
+            np.save(f'embeddings/embedding_{epoch+1}_{i+1}.npy', combined_embedding.cpu().numpy().flatten())
         print(f"Epoch [{epoch+1}/{epochs}] completed successfully")
-        # Combine embeddings after each epoch
-        combined_embedding = combine_embeddings(embeddings)
-        print(f"Combined embedding for epoch {epoch+1}: {combined_embedding}")
 
 # Call the training function
 train_autoencoder(model, data_loader, epochs=2)
