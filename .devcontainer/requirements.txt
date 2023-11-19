@@ -1,0 +1,6 @@
+jupyter
+pylint
+pytubefix
+opencv-python-headless
+psycopg-binary
+tqdm
