@@ -1,46 +1,84 @@
 import matplotlib.pyplot as plt
 from pgvector.psycopg import register_vector
 import psycopg
-import tempfile
 import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from torch.optim import Adam
 from tqdm import tqdm
 import cv2
+import matplotlib
+import os
+from PIL import Image
+matplotlib.use("TkAgg")
 
-class VideoFrameDataset(Dataset):
-    def __init__(self, root):
+class ImageFolderDataset(Dataset):
+    def __init__(self, root, transform=None):
         self.root = root
-        self.frame_files = [f for f in os.listdir(root) if f.endswith('.jpg')]
+        self.transform = transform
+        self.image_files = [os.path.join(root, f) for f in os.listdir(root) if f.endswith('.jpg')]
 
     def __len__(self):
-        return len(self.frame_files)
+        return len(self.image_files)
 
     def __getitem__(self, idx):
-        frame_file = self.frame_files[idx]
-        frame_path = os.path.join(self.root, frame_file)
-        frame = cv2.imread(frame_path)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+        image_file = self.image_files[idx]
+        image = Image.open(image_file).convert('RGB')
 
-        # Convert to tensor
-        frame = transforms.ToTensor()(frame)
+        if self.transform:
+            image = self.transform(image)
 
-        # Normalize
-        mean = torch.mean(frame)
-        std = torch.std(frame)
-        frame = transforms.Normalize(mean=[mean.item()]*3, std=[std.item()]*3)(frame)
-        frame = frame/255
-        return frame
+        return image
+
+def generate_embeddings(inputs):
+    inputs = inputs.view(-1, 3, 224, 224)
+    return model(inputs.to(device)).detach().cpu().numpy()
+
+def show_images(dataset_images):
+    grid = torchvision.utils.make_grid(dataset_images)
+    grid = grid.permute(1, 2, 0).numpy()
+    img = (grid / 2 + 0.5)
+    plt.imshow(img)
+    plt.draw()
+    plt.waitforbuttonpress(timeout=3)
 
 video_folder = "/workspaces/CS482_proj/Videos"
 preprocessed_folder = "Frames"
-dataset = VideoFrameDataset(root=preprocessed_folder)
+transform = torchvision.transforms.Compose([
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Resize((224, 224)),
+    torchvision.transforms.Lambda(lambda x: (x / 255).unsqueeze(0)),
+    torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
+# dataset = VideoFrameDataset(root=preprocessed_folder)
+dataset = ImageFolderDataset(preprocessed_folder, transform=transform)
 data_loader = DataLoader(dataset, batch_size=8, shuffle=True)
-
+device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+model = torchvision.models.resnet18(weights='DEFAULT')
+model.fc = torch.nn.Identity()
+model.to(device)
+model.eval()
 seed = True
 
 conn = psycopg.connect(dbname='postgres', host="localhost", port=5432)
 conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
 register_vector(conn)
+
+# generate, save, and index embeddings
+if seed:
+    conn.execute('DROP TABLE IF EXISTS image')
+    conn.execute('CREATE TABLE image (id bigserial PRIMARY KEY, embedding vector(512))')
+
+    print('Generating embeddings')
+    for data in tqdm(data_loader):
+        embeddings = generate_embeddings(data[0])
+
+        sql = 'INSERT INTO image (embedding) VALUES ' + ','.join(['(%s)' for _ in embeddings])
+        params = [embedding for embedding in embeddings]
+        conn.execute(sql, params)
+
+images = next(iter(data_loader))[0]
+
+embeddings = generate_embeddings(images)
+for image, embedding in zip(images, embeddings):
+    result = conn.execute('SELECT id FROM image ORDER BY embedding <=> %s LIMIT 15', (embedding,)).fetchall()
+    print("Found: ", result)
