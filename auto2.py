@@ -60,14 +60,16 @@ model.eval()
 seed = True
 
 conn = psycopg.connect(dbname='postgres', host="localhost", port=5432)
-conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+conn.execute('CREATE EXTENSION IF NOT EXISTS vector;')
 register_vector(conn)
+
+curr = conn.cursor()
 
 # generate, save, and index embeddings
 if seed:
-    conn.execute('DROP TABLE IF EXISTS image')
-    conn.execute('CREATE TABLE image (id bigserial PRIMARY KEY, embedding vector(512))')
-
+    conn.execute('DROP TABLE IF EXISTS image;')
+    conn.execute('CREATE TABLE image (id bigserial PRIMARY KEY, embedding vector(512));')
+    
     print('Generating embeddings')
     for data in tqdm(data_loader):
         embeddings = generate_embeddings(data[0])
@@ -80,5 +82,5 @@ images = next(iter(data_loader))[0]
 
 embeddings = generate_embeddings(images)
 for image, embedding in zip(images, embeddings):
-    result = conn.execute('SELECT id FROM image ORDER BY embedding <=> %s LIMIT 15', (embedding,)).fetchall()
+    result = conn.execute('SELECT id FROM image ORDER BY embedding <=> %s LIMIT 15;', (embedding,)).fetchall()
     print("Found: ", result)

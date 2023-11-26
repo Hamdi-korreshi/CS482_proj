@@ -5,3 +5,7 @@ client_secrets.json
 /embeddings
 /fixing
 /ProcessedVideos
+/word2vec-google-news-300.model
+/word2vec-google-news-300.model:Zone.Identifier
+/word2vec-google-news-300.model.vectors.npy
+/word2vec-google-news-300.model.vectors.npy:Zone.Identifier
