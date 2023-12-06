@@ -10,3 +10,4 @@ client_secrets.json
 /word2vec-google-news-300.model.vectors.npy
 /word2vec-google-news-300.model.vectors.npy:Zone.Identifier
 /text-embeddings
+/img_embeddings
