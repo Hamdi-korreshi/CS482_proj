@@ -9,6 +9,7 @@ import cv2
 import matplotlib
 import os
 from PIL import Image
+import numpy as np
 matplotlib.use("TkAgg")
 
 class ImageFolderDataset(Dataset):
@@ -43,13 +44,18 @@ def show_images(dataset_images):
 
 video_folder = "/workspaces/CS482_proj/Videos"
 preprocessed_folder = "Frames"
+embeddings_dir = "Embeddings"
+
+if not os.path.exists(embeddings_dir):
+    os.makedirs(embeddings_dir)
+
 transform = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Resize((224, 224)),
     torchvision.transforms.Lambda(lambda x: (x / 255).unsqueeze(0)),
     torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
-# dataset = VideoFrameDataset(root=preprocessed_folder)
+
 dataset = ImageFolderDataset(preprocessed_folder, transform=transform)
 data_loader = DataLoader(dataset, batch_size=8, shuffle=True)
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -65,14 +71,16 @@ register_vector(conn)
 
 curr = conn.cursor()
 
-# generate, save, and index embeddings
 if seed:
     conn.execute('DROP TABLE IF EXISTS image;')
     conn.execute('CREATE TABLE image (id bigserial PRIMARY KEY, embedding vector(512));')
     
     print('Generating embeddings')
-    for data in tqdm(data_loader):
+    for i, data in enumerate(tqdm(data_loader)):
         embeddings = generate_embeddings(data[0])
+        
+        for j, embedding in enumerate(embeddings):
+            np.save(os.path.join(embeddings_dir, f'embedding_{i}_{j}.npy'), embedding)
 
         sql = 'INSERT INTO image (embedding) VALUES ' + ','.join(['(%s)' for _ in embeddings])
         params = [embedding for embedding in embeddings]
