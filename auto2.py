@@ -9,6 +9,7 @@ import cv2
 import matplotlib
 import os
 from PIL import Image
+import numpy as np
 matplotlib.use("TkAgg")
 
 class ImageFolderDataset(Dataset):
@@ -69,14 +70,15 @@ curr = conn.cursor()
 if seed:
     conn.execute('DROP TABLE IF EXISTS image;')
     conn.execute('CREATE TABLE image (id bigserial PRIMARY KEY, embedding vector(512));')
-    
+    count = 1
     print('Generating embeddings')
     for data in tqdm(data_loader):
         embeddings = generate_embeddings(data[0])
-
+        np.save(f'img_embeddings/embeddings{count}.npy', embeddings)
         sql = 'INSERT INTO image (embedding) VALUES ' + ','.join(['(%s)' for _ in embeddings])
         params = [embedding for embedding in embeddings]
         conn.execute(sql, params)
+        count+=1
 
 images = next(iter(data_loader))[0]
 
